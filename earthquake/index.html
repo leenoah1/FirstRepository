@@ -1,64 +1,100 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
+<title>umbc</title>
+
 <style>
 
-.bar rect {
-  fill: steelblue;
+.line {
+  fill: none;
+  stroke: black;
+  stroke-width: 1px;
 }
 
-.bar text {
-  fill: #fff;
-  font: 10px sans-serif;
+rect {
+  fill: none;
+  stroke: black;
+  stroke-width: 1px;
+}
+
+path.quake, circle.quake {
+  fill: crimson;
+  fill-opacity: 0.4;
+}
+
+path.counties, path.county-border {
+  fill: none;
+  stroke: #000;
+  stroke-opacity: .2;
+}
+
+path.state {
+  fill: none;
+  stroke: #000;
 }
 
 </style>
-<svg width="960" height="500"></svg>
-<script src="https://d3js.org/d3.v4.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/1.6.19/topojson.js"></script>
+<body>
 <script>
 
-var data = d3.range(1000).map(d3.randomBates(10));
+var width = 960;
+var height = 500;
 
-var formatCount = d3.format(",.0f");
+var smallest = 2.5; // threshold magnitude
 
-var svg = d3.select("svg"),
-    margin = {top: 10, right: 30, bottom: 30, left: 30},
-    width = +svg.attr("width") - margin.left - margin.right,
-    height = +svg.attr("height") - margin.top - margin.bottom,
-    g = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+// Set the map projection centered on Oklahoma
+var projection = d3.geo.albers()
+    .scale(7543)
+    .translate([702, -186]);
 
-var x = d3.scaleLinear()
-    .rangeRound([0, width]);
+var path = d3.geo.path()
+    .pointRadius(5)
+    .projection(projection);
 
-var bins = d3.histogram()
-    .domain(x.domain())
-    .thresholds(x.ticks(20))
-    (data);
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height);
 
-var y = d3.scaleLinear()
-    .domain([0, d3.max(bins, function(d) { return d.length; })])
-    .range([height, 0]);
+var layer1 = svg.append("g");
+var layer2 = svg.append("g");
+  
+// Read and plot the earthquake data
+d3.json("quakes.json", plotQuakes)
 
-var bar = g.selectAll(".bar")
-  .data(bins)
-  .enter().append("g")
-    .attr("class", "bar")
-    .attr("transform", function(d) { return "translate(" + x(d.x0) + "," + y(d.length) + ")"; });
+// Read and plot the state & county boundaries
+d3.json("ok.json", plotState)
 
-bar.append("rect")
-    .attr("x", 1)
-    .attr("width", x(bins[0].x1) - x(bins[0].x0) - 1)
-    .attr("height", function(d) { return height - y(d.length); });
+function plotQuakes(error, data) {
+  if (error) console.log(error);
 
-bar.append("text")
-    .attr("dy", ".75em")
-    .attr("y", 6)
-    .attr("x", (x(bins[0].x1) - x(bins[0].x0)) / 2)
-    .attr("text-anchor", "middle")
-    .text(function(d) { return formatCount(d.length); });
+  // Filter the small earthquakes
+  var features = data.features.filter(function(d) { return (+ d.properties.mag >= smallest) });
 
-g.append("g")
-    .attr("class", "axis axis--x")
-    .attr("transform", "translate(0," + height + ")")
-    .call(d3.axisBottom(x));
+  // Plot the earthquakes
+  layer2.selectAll("path.quake")
+      .data(features)
+    .enter().append("path")
+      .attr("class", "quake")
+      .attr("d", path)
+}
+
+function plotState(error, ok) {
+  if (error) console.log(error);
+  
+  var objects = ok.objects.ok;
+  var all = topojson.merge(ok, objects.geometries);
+  
+  layer1.append("path")
+      .datum(all)
+      .attr("class", "state")
+      .attr("d", path);
+  
+  layer1.append("path")
+      .datum(topojson.mesh(ok, objects, function(a, b) { return a !== b; }))
+      .attr("class", "county-border")
+      .attr("d", path);
+ }
 
 </script>
