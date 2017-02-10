@@ -1,4 +1,4 @@
-window.onload = ready:
+window.onload = ready;
 
 function ready() {
 
